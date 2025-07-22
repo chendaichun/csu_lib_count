@@ -1,0 +1,37 @@
+name: Count free seats every 10 min
+
+on:
+  schedule:
+    # ┌─ min (*/10=every 10) ┐ ┌ hour ┐ ┌ day ┐ ┌ mon ┐ ┌ dow ┐
+    - cron:  '*/10         *     *       *       *'
+  workflow_dispatch:        # 允许手动触发
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # 允许向仓库推 log
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install requests beautifulsoup4
+
+      - name: Count free seats
+        id: seat
+        run: |
+          python scripts/count_seats.py >> $GITHUB_STEP_SUMMARY
+          # 上面的脚本会把“free=N”同时写到 $GITHUB_OUTPUT
+      - name: Append to log & push
+        run: |
+          echo "$(date -u '+%F %T') free=${{ steps.seat.outputs.free }}" >> seat_history.log
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add seat_history.log
+          git commit -m "chore: update seat stats" || echo "no change"
+          git push
